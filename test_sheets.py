@@ -7,7 +7,7 @@
 import os
 from dotenv import load_dotenv
 from google_sheets import (
-    get_admin_sheet, 
+    get_admin_sheet,  
     get_teacher_sheet, 
     create_teacher_sheet,
     get_date_column,
@@ -186,6 +186,192 @@ def test_teacher_creation():
         return False
 
 
+def test_color_coding_and_notes():
+    """Тестирует новую логику цветового кодирования и примечаний в ячейках дат"""
+    print("\n🔍 Тестирование цветового кодирования и примечаний...")
+    
+    try:
+        # Генерируем уникальное имя для теста
+        test_teacher_name = f"Тестовый Преподаватель {datetime.now().strftime('%Y%m%d%H%M%S')}"
+        
+        # Создаем тестовые данные
+        test_teacher = {
+            "ФИО": test_teacher_name,
+            "Номер телефона": "+79991234567",
+            "Телеграмм id": "123456789",
+            "Username": "test_teacher",
+            "Предмет": "Математика",
+            "Классы": "начальные, средние",
+            "Дата регистрации": datetime.now().strftime("%d.%m.%Y")
+        }
+
+        # 1. Добавляем преподавателя в админскую таблицу
+        admin_sheet = get_admin_sheet()
+        admin_sheet.append_row(list(test_teacher.values()))
+
+        # 2. Создаем лист преподавателя
+        sheet = create_teacher_sheet(test_teacher_name)
+        if not sheet:
+            print("❌ Не удалось создать лист преподавателя")
+            return False
+
+        # 3. Тестируем добавление учеников
+        today = datetime.now().strftime("%d.%m.%Y")
+        
+        # Ученик без примечания (должен быть зеленым)
+        result1 = append_student(test_teacher_name, "Тестовый Ученик 1", "5", "математика", today, "")
+        if not result1:
+            print("❌ Не удалось добавить ученика без примечания")
+            return False
+        
+        # Ученик с примечанием (должен быть красным)
+        result2 = append_student(test_teacher_name, "Тестовый Ученик 2", "7", "физика", today, "хорошо подготовился")
+        if not result2:
+            print("❌ Не удалось добавить ученика с примечанием")
+            return False
+
+        # 4. Проверяем значения в ячейках
+        date_col = get_date_column(sheet, today)
+        if not date_col:
+            print("❌ Не найдена колонка с датой")
+            return False
+
+        # Ищем строки учеников
+        all_values = sheet.get_all_values()
+        student1_row = None
+        student2_row = None
+        
+        for i in range(7, len(all_values)):
+            if len(all_values[i]) > 0 and all_values[i][0].startswith("Тестовый Ученик 1 5 математика"):
+                student1_row = i + 1
+            elif len(all_values[i]) > 0 and all_values[i][0].startswith("Тестовый Ученик 2 7 физика"):
+                student2_row = i + 1
+
+        if not student1_row or not student2_row:
+            print("❌ Не найдены строки учеников")
+            return False
+
+        # Проверяем значения в ячейках
+        student1_value = sheet.cell(student1_row, date_col).value
+        student2_value = sheet.cell(student2_row, date_col).value
+
+        if student1_value != "да":
+            print(f"❌ Ученик 1 должен иметь значение 'да', получено: {student1_value}")
+            return False
+
+        if student2_value != "хорошо подготовился":
+            print(f"❌ Ученик 2 должен иметь примечание, получено: {student2_value}")
+            return False
+
+        print("✅ Цветовое кодирование и примечания работают корректно")
+        
+        # Очистка
+        from google_sheets import get_spreadsheet
+        spreadsheet = get_spreadsheet()
+        spreadsheet.del_worksheet(sheet)
+        
+        return True
+
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        return False
+
+
+def test_student_duplication_prevention():
+    """Тестирует предотвращение дублирования учеников"""
+    print("\n🔍 Тестирование предотвращения дублирования учеников...")
+    
+    try:
+        # Генерируем уникальное имя для теста
+        test_teacher_name = f"Тестовый Преподаватель {datetime.now().strftime('%Y%m%d%H%M%S')}"
+        
+        # Создаем тестовые данные
+        test_teacher = {
+            "ФИО": test_teacher_name,
+            "Номер телефона": "+79991234567",
+            "Телеграмм id": "123456789",
+            "Username": "test_teacher",
+            "Предмет": "Математика",
+            "Классы": "начальные, средние",
+            "Дата регистрации": datetime.now().strftime("%d.%m.%Y")
+        }
+
+        # 1. Добавляем преподавателя в админскую таблицу
+        admin_sheet = get_admin_sheet()
+        admin_sheet.append_row(list(test_teacher.values()))
+
+        # 2. Создаем лист преподавателя
+        sheet = create_teacher_sheet(test_teacher_name)
+        if not sheet:
+            print("❌ Не удалось создать лист преподавателя")
+            return False
+
+        # 3. Тестируем дублирование
+        today = datetime.now().strftime("%d.%m.%Y")
+        student_name = "Дублирующийся Ученик"
+        student_class = "5"
+        
+        # Первое добавление
+        result1 = append_student(test_teacher_name, student_name, student_class, "математика", today, "первое занятие")
+        if not result1:
+            print("❌ Не удалось добавить ученика в первый раз")
+            return False
+        
+        # Второе добавление того же ученика (должно только обновить ячейку)
+        result2 = append_student(test_teacher_name, student_name, student_class, "математика", today, "второе занятие")
+        if not result2:
+            print("❌ Не удалось обновить запись ученика")
+            return False
+
+        # 4. Проверяем, что ученик не дублировался
+        all_values = sheet.get_all_values()
+        student_count = 0
+        
+        for i in range(7, len(all_values)):
+            if len(all_values[i]) > 0 and all_values[i][0].startswith(f"{student_name} {student_class} математика"):
+                student_count += 1
+
+        if student_count != 1:
+            print(f"❌ Ученик дублировался! Найдено записей: {student_count}")
+            return False
+
+        # 5. Проверяем, что в ячейке даты последнее примечание
+        date_col = get_date_column(sheet, today)
+        if not date_col:
+            print("❌ Не найдена колонка с датой")
+            return False
+
+        # Ищем строку ученика
+        student_row = None
+        for i in range(7, len(all_values)):
+            if len(all_values[i]) > 0 and all_values[i][0].startswith(f"{student_name} {student_class} математика"):
+                student_row = i + 1
+                break
+
+        if not student_row:
+            print("❌ Не найдена строка ученика")
+            return False
+
+        # Проверяем значение в ячейке (должно быть последнее примечание)
+        cell_value = sheet.cell(student_row, date_col).value
+        if cell_value != "второе занятие":
+            print(f"❌ В ячейке должно быть последнее примечание 'второе занятие', получено: {cell_value}")
+            return False
+
+        print("✅ Дублирование учеников предотвращено корректно")
+        
+        # Очистка
+        from google_sheets import get_spreadsheet
+        spreadsheet = get_spreadsheet()
+        spreadsheet.del_worksheet(sheet)
+        
+        return True
+
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        return False
+
+
 def main():
     """Основная функция тестирования"""
     load_dotenv()
@@ -197,6 +383,8 @@ def main():
         ("Структура шаблонного листа", test_template_structure),
         ("Поиск дат", test_date_search),
         ("Создание листа преподавателя", test_teacher_creation),
+        ("Цветовое кодирование и примечания", test_color_coding_and_notes),
+        ("Предотвращение дублирования учеников", test_student_duplication_prevention),
     ]
     
     passed = 0

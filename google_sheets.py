@@ -10,6 +10,29 @@ def get_client():
     creds = Credentials.from_service_account_file(GOOGLE_CREDENTIALS_JSON, scopes=scope)
     return gspread.authorize(creds)
 
+def format_cell_with_color(sheet, row, col, value, has_note=False):
+    """Форматирует ячейку с цветом и значением"""
+    try:
+        # Устанавливаем значение в ячейку
+        sheet.update_cell(row, col, value)
+        
+        # Определяем цвет в зависимости от наличия примечания
+        if has_note:
+            # Красный цвет для ячеек с примечаниями
+            color = {"red": 1.0, "green": 0.0, "blue": 0.0}
+        else:
+            # Зеленый цвет для ячеек без примечаний
+            color = {"red": 0.0, "green": 1.0, "blue": 0.0}
+        
+        # Применяем форматирование (используем gspread формат)
+        cell_range = f"{gspread.utils.rowcol_to_a1(row, col)}"
+        sheet.format(cell_range, {
+            "backgroundColor": color
+        })
+        
+    except Exception as e:
+        print(f"Ошибка при форматировании ячейки: {e}")
+
 def get_spreadsheet():
     """Получает объект таблицы"""
     client = get_client()
@@ -96,14 +119,23 @@ def get_date_column(sheet, target_date):
         return None
 
 
-def find_student_row(sheet, student_name):
+def find_student_row(sheet, student_name, student_class="", subject=""):
     """Находит строку с учеником или возвращает None. Ученики начинаются с 8-й строки (индекс 7)."""
     try:
         all_values = sheet.get_all_values()
+        
+        # Формируем полное имя для поиска: "Фамилия Имя Класс Предмет"
+        name_parts = [student_name]
+        if student_class:
+            name_parts.append(student_class)
+        if subject:
+            name_parts.append(subject)
+        full_name = " ".join(name_parts)
+        
         for i, row in enumerate(all_values):
             if i < 7:  # до 8-й строки включительно
                 continue
-            if len(row) > 0 and row[0] == student_name:
+            if len(row) > 0 and row[0] == full_name:
                 return i + 1
         return None
     except Exception as e:
@@ -111,7 +143,7 @@ def find_student_row(sheet, student_name):
         return None
 
 
-def append_student(teacher_name, student_name, student_class, date, note=""):
+def append_student(teacher_name, student_name, student_class, subject, date, note=""):
     """Добавляет или обновляет запись о занятии ученика"""
     try:
         sheet = get_teacher_sheet(teacher_name)
@@ -126,14 +158,12 @@ def append_student(teacher_name, student_name, student_class, date, note=""):
             return False
         
         # Ищем существующую запись ученика
-        student_row = find_student_row(sheet, student_name)
+        student_row = find_student_row(sheet, student_name, student_class, subject)
         
         if student_row:
-            # Обновляем существующую запись - ставим "да" в нужную колонку
-            sheet.update_cell(student_row, date_col, "да")
-            if note:
-                # Обновляем примечания (колонка F)
-                sheet.update_cell(student_row, 6, note)
+            # Обновляем существующую запись - ставим значение в нужную колонку с цветом
+            cell_value = note if note else "да"
+            format_cell_with_color(sheet, student_row, date_col, cell_value, bool(note))
         else:
             # Добавляем новую запись
             # Находим первую пустую строку начиная с 8-й строки (ученики)
@@ -149,14 +179,20 @@ def append_student(teacher_name, student_name, student_class, date, note=""):
             
             # Создаем новую строку
             new_row = [""] * sheet.col_count
-            new_row[0] = f"{student_name} {student_class}" if student_class else student_name  # ФИО и класс в A
-            new_row[date_col - 1] = "да"  # Отметка о занятии
-            
-            if note:
-                new_row[5] = note  # Примечания в колонке F (индекс 5)
+            # Формируем полное имя: "Фамилия Имя Класс Предмет"
+            name_parts = [student_name]
+            if student_class:
+                name_parts.append(student_class)
+            if subject:
+                name_parts.append(subject)
+            new_row[0] = " ".join(name_parts)  # ФИО, класс и предмет в A
             
             # Добавляем строку
             sheet.update(f"A{new_row_num}", [new_row])
+            
+            # Форматируем ячейку с датой (примечание или "да")
+            cell_value = note if note else "да"
+            format_cell_with_color(sheet, new_row_num, date_col, cell_value, bool(note))
         
         return True
         
@@ -179,7 +215,7 @@ def get_teacher_info(teacher_name):
             return None
         
         # Ожидаемые заголовки в 3-й строке (индекс 2)
-        headers = ["ФИО", "Телефон", "Telegram ID", "Username", "Предмет", "Классы", "Дата регистрации"]
+        headers = ["ФИО", "Номер телефона", "Телеграмм id", "Username", "Предмет", "Классы", "Дата регистрации"]
         
         # Начинаем чтение данных с 4-й строки (индекс 3)
         for i in range(3, len(all_values)):

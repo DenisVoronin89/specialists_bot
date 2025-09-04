@@ -24,7 +24,7 @@ def get_teacher_name_by_id(telegram_id):
         if len(row) > 2 and str(row[2]).strip() == str(telegram_id).strip():
             return row[0].strip() if len(row) > 0 else None
     return None
-
+ 
 def register_teacher(data: dict):
     """
     Регистрирует нового преподавателя
@@ -42,7 +42,7 @@ def register_teacher(data: dict):
     data["Дата регистрации"] = datetime.now().strftime("%d.%m.%Y")
     
     # Добавляем запись в таблицу преподавателей. Данные начинаются с 4-й строки.
-    values = [data.get("ФИО", ""), data.get("Телефон", ""), data.get("Telegram ID", ""), data.get("Username", ""), data.get("Предмет", ""), data.get("Классы", ""), data.get("Дата регистрации", "")]
+    values = [data.get("ФИО", ""), data.get("Номер телефона", ""), data.get("Телеграмм id", ""), data.get("Username", ""), data.get("Предмет", ""), data.get("Классы", ""), data.get("Дата регистрации", "")]
     existing = sheet.get_all_values()
     
     # Находим первую пустую строку начиная с 4-й

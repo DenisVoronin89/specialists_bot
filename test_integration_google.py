@@ -82,12 +82,20 @@ def main():
         raise SystemExit("Не удалось создать вкладку преподавателя")
     print(f"✅ Создан лист преподавателя: {sheet.title}")
 
-    # Шаг 3: Добавляем запись ученика
+    # Шаг 3: Добавляем записи учеников (тестируем новую логику)
     today = datetime.now().strftime("%d.%m.%Y")
-    ok = append_student(TEST_TEACHER["ФИО"], "Петров Петр", "5", today, note="интеграционный тест")
-    if not ok:
-        raise SystemExit("Не удалось добавить запись ученика")
-    print("✅ Запись ученика добавлена")
+    
+    # Тест 1: Ученик без примечания (должен быть зеленым)
+    ok1 = append_student(TEST_TEACHER["ФИО"], "Петров Петр", "5", "математика", today, note="")
+    if not ok1:
+        raise SystemExit("Не удалось добавить запись ученика без примечания")
+    print("✅ Запись ученика без примечания добавлена (зеленый)")
+    
+    # Тест 2: Ученик с примечанием (должен быть красным)
+    ok2 = append_student(TEST_TEACHER["ФИО"], "Иванова Анна", "7", "физика", today, note="интеграционный тест")
+    if not ok2:
+        raise SystemExit("Не удалось добавить запись ученика с примечанием")
+    print("✅ Запись ученика с примечанием добавлена (красный)")
 
     # Шаг 4: Проверяем значения на листе преподавателя
     sheet = get_teacher_sheet(TEST_TEACHER["ФИО"])  # получить свежий объект
@@ -98,24 +106,31 @@ def main():
     assert fio_cell == TEST_TEACHER["ФИО"], f"Ожидалось ФИО в B2: {TEST_TEACHER['ФИО']}, получено: {fio_cell}"
     assert phone_cell == TEST_TEACHER["Телефон"], f"Ожидался телефон в B3: {TEST_TEACHER['Телефон']}, получено: {phone_cell}"
 
-    # Проверка отметки по дате
+    # Проверка отметок по дате
     date_col = get_date_column(sheet, today)
     assert date_col, f"Не найдена колонка для даты {today}"
 
-    # Ученики начинаются с 8-й строки. Ищем строку с ФИО ученика в первом столбце
+    # Проверяем ученика без примечания (Петров Петр)
     all_values = sheet.get_all_values()
-    row_index = None
+    petrov_row = None
+    ivanova_row = None
+    
     for i in range(7, len(all_values)):
-        if len(all_values[i]) > 0 and all_values[i][0].startswith("Петров Петр"):
-            row_index = i + 1
-            break
-    assert row_index, "Не найдена строка ученика"
+        if len(all_values[i]) > 0 and all_values[i][0].startswith("Петров Петр 5 математика"):
+            petrov_row = i + 1
+        elif len(all_values[i]) > 0 and all_values[i][0].startswith("Иванова Анна 7 физика"):
+            ivanova_row = i + 1
+    
+    assert petrov_row, "Не найдена строка ученика Петров Петр"
+    assert ivanova_row, "Не найдена строка ученика Иванова Анна"
 
-    mark = sheet.cell(row_index, date_col).value
-    assert mark == "да", f"Отметка должна быть 'да', получено: {mark}"
+    # Проверяем Петрова (без примечания - должно быть "да")
+    petrov_mark = sheet.cell(petrov_row, date_col).value
+    assert petrov_mark == "да", f"Отметка Петрова должна быть 'да', получено: {petrov_mark}"
 
-    note_val = sheet.cell(row_index, 6).value  # колонка F
-    assert note_val == "интеграционный тест", f"Ожидалось примечание в F: интеграционный тест, получено: {note_val}"
+    # Проверяем Иванову (с примечанием - должно быть само примечание)
+    ivanova_mark = sheet.cell(ivanova_row, date_col).value
+    assert ivanova_mark == "интеграционный тест", f"Отметка Ивановой должна быть примечанием, получено: {ivanova_mark}"
 
     print("✅ Проверка листа преподавателя прошла успешно")
 

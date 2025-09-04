@@ -81,8 +81,8 @@ async def get_classes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     registration_data = {
         "ФИО": context.user_data['fio'],
-        "Телефон": context.user_data['phone'],
-        "Telegram ID": user.id,
+        "Номер телефона": context.user_data['phone'],
+        "Телеграмм id": user.id,
         "Username": user.username or "",
         "Предмет": context.user_data['subject'],
         "Классы": context.user_data['classes']
@@ -101,8 +101,8 @@ async def get_classes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"Регистрация завершена! Добро пожаловать, {context.user_data['fio']}!\n\n"
         "Теперь вы можете отправлять сообщения с ФИО учеников для записи занятий.\n"
-        "Формат: Фамилия Имя [класс] / примечания\n"
-        "Пример: Петров Петр 5 / хорошо подготовился",
+        "Формат: Фамилия Имя Класс Предмет / примечания\n"
+        "Пример: Петров Петр 5 математика / хорошо подготовился",
         reply_markup=ReplyKeyboardRemove()
     )
     
@@ -130,8 +130,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Проверяем регистрацию
     if not is_registered(user.id):
+        # Начинаем регистрацию сразу
         await update.message.reply_text(
-            "Вы не зарегистрированы. Начинаем процесс регистрации.\n"
+            "👋 Добро пожаловать!\n\n"
+            "Вы не зарегистрированы в системе. Для начала работы необходимо пройти регистрацию.\n\n"
             "Введите ваше ФИО полностью (например: Иванов Иван Иванович):"
         )
         return FIO
@@ -147,6 +149,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Ошибка: не удалось найти данные преподавателя.")
 
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start"""
     user = update.effective_user
@@ -161,11 +164,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"Привет, {teacher_name}!\n\n"
             "Отправляйте сообщения с ФИО учеников для записи занятий.\n"
-            "Формат: Фамилия Имя [класс] / примечания\n"
-            "Пример: Петров Петр 5 / хорошо подготовился"
+            "Формат: Фамилия Имя Класс Предмет / примечания\n"
+            "Пример: Петров Петр 5 математика / хорошо подготовился"
         )
     else:
         await start_registration(update, context)
+
 
 def main():
     """Основная функция запуска бота"""

@@ -8,7 +8,7 @@ pytestmark = pytest.mark.asyncio
 from types import SimpleNamespace
 
 # Импортируем тестируемые функции и константы
-from bot import handle_message, start_command, FIO, PHONE, SUBJECT, CLASSES, get_fio, get_phone, get_subject, get_classes
+from bot import handle_message, start_command, FIO, PHONE, SUBJECT, CLASSES, get_fio, get_phone, get_subject, get_classes, button_callback
 from config import AUTHORIZED_CHAT_ID
 
 
@@ -19,6 +19,17 @@ class DummyMessage:
 
     async def reply_text(self, text, reply_markup=None):
         self.sent_texts.append(text)
+
+class DummyCallbackQuery:
+    def __init__(self, data="start_registration"):
+        self.data = data
+        self.answered = False
+
+    async def answer(self):
+        self.answered = True
+
+    async def edit_message_text(self, text):
+        self.edited_text = text
 
 
 class DummyUser:
@@ -59,8 +70,8 @@ async def _handle(update, context):
 
 
 @pytest.mark.asyncio
-async def test_registration_entry_triggers_fio_state(monkeypatch, dummy_context):
-    """КРИТИЧНО: Проверяет запуск регистрации при первом сообщении"""
+async def test_registration_entry_shows_button(monkeypatch, dummy_context):
+    """КРИТИЧНО: Проверяет показ кнопки регистрации при первом сообщении"""
     import registration
     monkeypatch.setattr(registration, "is_registered", lambda _tid: False)
 
@@ -68,10 +79,11 @@ async def test_registration_entry_triggers_fio_state(monkeypatch, dummy_context)
 
     state = await _handle(upd, dummy_context)
 
-    # Должно вернуть состояние FIO и отправить подсказку
-    assert state == FIO
+    # Должно вернуть ConversationHandler.END и показать кнопку
+    assert state == -1  # ConversationHandler.END
     assert len(upd.message.sent_texts) == 1
-    assert "Введите ваше ФИО полностью" in upd.message.sent_texts[0]
+    assert "Добро пожаловать" in upd.message.sent_texts[0]
+    assert "Нажмите кнопку ниже" in upd.message.sent_texts[0]
 
 
 @pytest.mark.asyncio
@@ -157,4 +169,22 @@ async def test_handle_message_error_handling(monkeypatch, dummy_context):
     await _handle(upd, dummy_context)
 
     # Ожидаем сообщение об ошибке
-    assert any("Ошибка при обработке сообщения" in s for s in upd.message.sent_texts) 
+    assert any("Ошибка при обработке сообщения" in s for s in upd.message.sent_texts)
+
+
+@pytest.mark.asyncio
+async def test_button_callback_starts_registration(dummy_context):
+    """КРИТИЧНО: Проверяет обработку кнопки 'Начать регистрацию'"""
+    from types import SimpleNamespace
+    
+    # Создаем мок для callback query
+    callback_query = DummyCallbackQuery("start_registration")
+    update = SimpleNamespace()
+    update.callback_query = callback_query
+    
+    state = await button_callback(update, dummy_context)
+    
+    # Должно вернуть состояние FIO и отредактировать сообщение
+    assert state == FIO
+    assert callback_query.answered == True
+    assert "Введите ваше ФИО полностью" in callback_query.edited_text 
